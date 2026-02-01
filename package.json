@@ -1,0 +1,32 @@
+{
+  "name": "@tinyst/orbit",
+  "author": "Wirune Kaewjai",
+  "version": "0.0.1",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/main.js",
+      "types": "./dist/main.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.57.0",
+    "@tinyst/jsx": "github:tinyst/jsx#259004e330d0bd2c35d70256a551577df1800ba2",
+    "@tinyst/vite-plugin-virtual-html": "github:tinyst/vite-plugin-virtual-html#eec8754bad869e6fb2bac898bd9c93f319ef79d9",
+    "@types/node": "25.1.0",
+    "@types/react": "19.2.9",
+    "@types/react-dom": "19.2.3",
+    "husky": "8.0.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vite": "7.3.1"
+  }
+}
