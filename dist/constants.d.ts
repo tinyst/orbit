@@ -1,1 +1,1 @@
-export declare const ORBIT_SCOPE_BEHAVIOR_SYMBOL: unique symbol;
+export declare const ORBIT_MODULE_SYMBOL: unique symbol;

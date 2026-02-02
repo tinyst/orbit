@@ -1,4 +1,3 @@
-import type { Orbit } from "./types.js";
-export { defineScope } from "./scope.js";
+export * from "./component.js";
+export * from "./core.js";
 export type * from "./types.js";
-export declare function getOrbit(): Orbit;

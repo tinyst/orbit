@@ -1,1 +1,1 @@
-export const ORBIT_SCOPE_BEHAVIOR_SYMBOL = Symbol.for("orbit:scope_behavior");
+export const ORBIT_MODULE_SYMBOL = Symbol.for("ORBIT_MODULE");
