@@ -189,17 +189,20 @@ export function createScope(loader, root) {
                             }
                             continue;
                         }
-                        // TODO: radio input and other elements
-                        console.error("not implemented o-model for", element);
+                        // TODO: radio input and other elements (can workaround by custom logic inside component)
+                        console.warn("not implemented o-model for", element);
                     }
                     else if (attribute.name === "o-if") {
-                        console.error(`not implemented ${attribute.name} for`, element);
+                        // quite important (will implement soon)
+                        console.warn(`not implemented ${attribute.name} for`, element);
                     }
                     else if (attribute.name === "o-for") {
-                        console.error(`not implemented ${attribute.name} for`, element);
+                        // TODO: render simple array only (still requires custom logic on js for large arrays to do virtualization instead)
+                        console.warn(`not implemented ${attribute.name} for`, element);
                     }
                     else if (attribute.name === "o-teleport") {
-                        console.error(`not implemented ${attribute.name} for`, element);
+                        // quite important (will implement soon) but can workaround by using dialog element instead in some cases
+                        console.warn(`not implemented ${attribute.name} for`, element);
                     }
                     else if (attribute.name.startsWith("o-scope")) {
                         // skip
