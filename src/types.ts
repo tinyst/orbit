@@ -1,18 +1,40 @@
-import type { ORBIT_MODULE_SYMBOL } from "./constants.js";
+import type { ORBIT_COMPONENT_SYMBOL } from "./constants.js";
 
 export type Orbit = {
-  register(name: string, loader: OrbitModuleLoader): void;
+  register(name: string, loader: OrbitComponentLoader): void;
   start(): void;
   stop(): void;
 };
 
-export type OrbitModuleLoader = OrbitModule<any> | (() => Promise<OrbitModule<any>>);
-export type OrbitModule<T extends OrbitScope<any>> = {
-  readonly [ORBIT_MODULE_SYMBOL]: true;
-  instantiate: OrbitScopeInstantiateFunction<T>;
+export type OrbitDispose = () => void;
+
+// scope
+export type OrbitScope = {
+  disposables(...disposables: OrbitDispose[]): void;
+  ref<T extends OrbitRefMap>(hooks?: Partial<OrbitRefHooks<T>>): Partial<T>;
+  state<T extends object>(initialState: T): T;
 };
 
-export type OrbitScopeInstantiateFunction<T extends OrbitScope<T>> = (root: Element) => T;
-export type OrbitScope<T extends object> = {
-  mount?(this: OrbitScope<T>): (() => void) | void;
+// scope -> ref
+export type OrbitRefMap = {
+  [key: string]: Element;
 };
+
+export type OrbitRefHooks<T extends OrbitRefMap> = {
+  [key in keyof T]: OrbitRefHook<T[key]>;
+};
+
+export type OrbitRefHook<E extends Element> = (element: E, signal: AbortSignal) => void;
+
+// scope -> state
+export type OrbitStateHook = (value: any) => void;
+
+// scope -> component
+export type OrbitComponentLoader = OrbitComponent<any> | (() => Promise<OrbitComponent<any>>);
+export type OrbitComponent<T extends OrbitComponentProps<any> = undefined> = {
+  readonly [ORBIT_COMPONENT_SYMBOL]: true;
+  readonly mount: OrbitComponentFn<T>;
+};
+
+export type OrbitComponentProps<T> = T extends object ? T : undefined;
+export type OrbitComponentFn<T extends OrbitComponentProps<any> = undefined> = (scope: OrbitScope, props: OrbitComponentProps<T>) => void;

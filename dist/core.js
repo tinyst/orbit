@@ -1,25 +1,58 @@
-import { ORBIT_MODULE_SYMBOL } from "./constants.js";
+import { ORBIT_COMPONENT_SYMBOL } from "./constants.js";
+import { createScope } from "./scope.js";
 let orbit;
 // public functions
 export function getOrbit() {
     if (orbit) {
         return orbit;
     }
-    const destroys = new Map();
     const loaders = new Map();
-    let mutationObserver;
-    let intersectionObserver;
-    const onMount = (element) => {
-        const name = element.getAttribute("o-scope");
-        const loader = loaders.get(name);
-        if (loader) {
-            destroys.set(element, createScope(loader, element));
-        }
+    const disposes = new Map();
+    const disposables = [];
+    const onBeforeUnload = () => {
+        window.removeEventListener("beforeunload", onBeforeUnload);
+        // clear local variables
+        loaders.clear();
+        // clear global variables
+        orbit?.stop();
+        orbit = undefined;
     };
-    const onUnmount = (element) => {
-        destroys.get(element)?.();
-        destroys.delete(element);
+    orbit = {
+        register(name, loader) {
+            loaders.set(name, loader);
+        },
+        start() {
+            disposables.push(observeTree(document.body, {
+                onMount: (element) => {
+                    const name = element.getAttribute("o-scope");
+                    const loader = loaders.get(name);
+                    if (loader) {
+                        disposes.set(element, createScope(loader, element));
+                    }
+                },
+                onUnmount: (element) => {
+                    disposes.get(element)?.();
+                    disposes.delete(element);
+                },
+            }));
+            window.addEventListener("beforeunload", onBeforeUnload);
+        },
+        stop() {
+            disposables.forEach((dispose) => dispose());
+            disposes.forEach((dispose) => dispose());
+            disposes.clear();
+        },
     };
+    return orbit;
+}
+export function defineComponent(behavior) {
+    return {
+        [ORBIT_COMPONENT_SYMBOL]: true,
+        mount: behavior,
+    };
+}
+// private functions
+function observeTree(root, hooks) {
     // for start
     const onInit = (element) => {
         const strategy = element.getAttribute("o-load");
@@ -28,7 +61,7 @@ export function getOrbit() {
             return;
         }
         if (element.hasAttribute("o-scope")) {
-            onMount(element);
+            hooks.onMount(element);
         }
         for (const child of element.children) {
             onInit(child);
@@ -41,7 +74,7 @@ export function getOrbit() {
                 intersectionObserver?.observe(element);
                 return;
             }
-            onMount(element);
+            hooks.onMount(element);
         }
         for (const child of element.children) {
             onAdd(child);
@@ -51,96 +84,49 @@ export function getOrbit() {
         for (const child of element.children) {
             onRemove(child);
         }
-        onUnmount(element);
+        hooks.onUnmount(element);
     };
     // for IntersectionObserver
     const onVisible = (element) => {
         if (element.hasAttribute("o-scope")) {
-            onMount(element);
+            hooks.onMount(element);
         }
         for (const child of element.children) {
             onVisible(child);
         }
     };
-    orbit = {
-        register(name, loader) {
-            loaders.set(name, loader);
-        },
-        start() {
-            mutationObserver = new MutationObserver((mutations) => {
-                for (const mutation of mutations) {
-                    if (mutation.type === "childList") {
-                        for (const node of mutation.removedNodes) {
-                            if (node instanceof Element) {
-                                onRemove(node);
-                            }
-                        }
-                        for (const node of mutation.addedNodes) {
-                            if (node instanceof Element) {
-                                onAdd(node);
-                            }
-                        }
+    const mutationObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.type === "childList") {
+                for (const node of mutation.removedNodes) {
+                    if (node instanceof Element) {
+                        onRemove(node);
                     }
                 }
-            });
-            mutationObserver.observe(document.body, {
-                childList: true,
-                subtree: true,
-            });
-            intersectionObserver = new IntersectionObserver((entries) => {
-                for (const entry of entries) {
-                    if (entry.isIntersecting) {
-                        entry.target.removeAttribute("o-load");
-                        intersectionObserver?.unobserve(entry.target);
-                        onVisible(entry.target);
+                for (const node of mutation.addedNodes) {
+                    if (node instanceof Element) {
+                        onAdd(node);
                     }
                 }
-            });
-            onInit(document.body);
-        },
-        stop() {
-            mutationObserver?.disconnect();
-            mutationObserver = undefined;
-            intersectionObserver?.disconnect();
-            intersectionObserver = undefined;
-            destroys.forEach((fn) => fn());
-            destroys.clear();
-        },
-    };
-    return orbit;
-}
-export function defineScope(instantiate) {
-    return {
-        [ORBIT_MODULE_SYMBOL]: true,
-        instantiate,
-    };
-}
-// private functions
-function createScope(loader, element) {
-    const controller = new AbortController();
-    const signal = controller.signal;
-    resolveModuleLoader(loader).then(({ instantiate }) => {
-        if (signal.aborted) {
-            return;
-        }
-        const instance = instantiate(element);
-        const unmount = instance.mount?.();
-        if (typeof unmount === "function") {
-            signal.addEventListener("abort", () => {
-                unmount();
-            });
+            }
         }
     });
+    const intersectionObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            if (entry.isIntersecting) {
+                entry.target.removeAttribute("o-load");
+                intersectionObserver?.unobserve(entry.target);
+                onVisible(entry.target);
+            }
+        }
+    });
+    onInit(root);
+    mutationObserver.observe(root, {
+        childList: true,
+        subtree: true,
+    });
     return () => {
-        controller.abort();
+        mutationObserver.disconnect();
+        intersectionObserver.disconnect();
     };
-}
-async function resolveModuleLoader(loader) {
-    if (isStaticModuleLoader(loader)) {
-        return loader;
-    }
-    return await loader();
-}
-function isStaticModuleLoader(loader) {
-    return (loader && typeof loader === "object" && loader[ORBIT_MODULE_SYMBOL]);
 }
