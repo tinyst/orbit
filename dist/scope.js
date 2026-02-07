@@ -247,13 +247,14 @@ export function createScope(loader, root) {
                     if (element instanceof HTMLTemplateElement) {
                         const path = attribute.value;
                         const template = element;
+                        const templateParent = element.parentElement ?? root;
                         const templateElements = new Set();
                         registerStateChange(element, path, (next) => {
                             if (next) {
                                 if (!templateElements.size) {
                                     for (const child of template.content.children) {
                                         const cloned = child.cloneNode(true);
-                                        template.before(cloned);
+                                        templateParent.appendChild(cloned);
                                         templateElements.add(cloned);
                                         if (!root.contains(cloned)) {
                                             observeElementTree(cloned);
@@ -286,11 +287,12 @@ export function createScope(loader, root) {
                     }
                 }
                 else if (attribute.name === "o-for") {
-                    // for small array only
+                    // for small array only !!! (because every cloned element will have owned abort event listener and may have own tree observer)
                     if (element instanceof HTMLTemplateElement) {
                         const path = attribute.value;
                         const as = element.getAttribute("o-as") ?? "$";
                         const template = element;
+                        const templateParent = element.parentElement ?? root;
                         let templateElements = new Set();
                         const mapPath = (itemElement, each, as, index) => {
                             for (const attribute of itemElement.attributes) {
@@ -337,7 +339,7 @@ export function createScope(loader, root) {
                                         for (const child of template.content.children) {
                                             const cloned = child.cloneNode(true);
                                             mapPath(cloned, path, as, i);
-                                            template.before(cloned);
+                                            templateParent.appendChild(cloned);
                                             templateElements.add(cloned);
                                             if (!root.contains(cloned)) {
                                                 observeElementTree(cloned);
@@ -372,6 +374,7 @@ export function createScope(loader, root) {
                     }
                 }
                 else if (attribute.name === "o-teleport") {
+                    // for simple elements only (because every cloned element will have owned abort event listener and also have own tree observer)
                     const selector = attribute.value;
                     const target = document.querySelector(selector);
                     if (!target) {

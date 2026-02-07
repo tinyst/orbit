@@ -330,6 +330,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
             const path = attribute.value;
 
             const template = element as HTMLTemplateElement;
+            const templateParent = element.parentElement ?? root;
             const templateElements = new Set<Element>();
 
             registerStateChange(element, path, (next) => {
@@ -338,7 +339,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
                   for (const child of template.content.children) {
                     const cloned = child.cloneNode(true) as Element;
 
-                    template.before(cloned);
+                    templateParent.appendChild(cloned);
                     templateElements.add(cloned);
 
                     if (!root.contains(cloned)) {
@@ -378,12 +379,13 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
         }
 
         else if (attribute.name === "o-for") {
-          // for small array only
+          // for small array only !!! (because every cloned element will have owned abort event listener and may have own tree observer)
           if (element instanceof HTMLTemplateElement) {
             const path = attribute.value;
             const as = element.getAttribute("o-as") ?? "$";
 
             const template = element as HTMLTemplateElement;
+            const templateParent = element.parentElement ?? root;
 
             let templateElements = new Set<Element>();
 
@@ -444,7 +446,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
 
                       mapPath(cloned, path, as, i);
 
-                      template.before(cloned);
+                      templateParent.appendChild(cloned);
                       templateElements.add(cloned);
 
                       if (!root.contains(cloned)) {
@@ -487,6 +489,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
         }
 
         else if (attribute.name === "o-teleport") {
+          // for simple elements only (because every cloned element will have owned abort event listener and also have own tree observer)
           const selector = attribute.value;
           const target = document.querySelector(selector);
 

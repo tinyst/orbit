@@ -4,7 +4,7 @@
     "declaration": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "jsxImportSource": "@tinyst/jsx/static",
+    "jsxImportSource": "preact",
     "module": "Preserve",
     "moduleDetection": "force",
     "moduleResolution": "bundler",

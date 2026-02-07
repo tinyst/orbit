@@ -1,5 +1,5 @@
 import { getOrbit } from "../src/core";
-import { Counter, CounterScope } from "./page_counter";
+import { Counter, CounterScope } from "./page2_counter";
 
 const orbit = getOrbit();
 
