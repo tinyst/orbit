@@ -330,7 +330,6 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
             const path = attribute.value;
 
             const template = element as HTMLTemplateElement;
-            const templateParent = element.parentElement ?? root;
             const templateElements = new Set<Element>();
 
             registerStateChange(element, path, (next) => {
@@ -339,7 +338,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
                   for (const child of template.content.children) {
                     const cloned = child.cloneNode(true) as Element;
 
-                    templateParent.appendChild(cloned);
+                    template.before(cloned);
                     templateElements.add(cloned);
 
                     if (!root.contains(cloned)) {
@@ -385,7 +384,6 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
             const as = element.getAttribute("o-as") ?? "$";
 
             const template = element as HTMLTemplateElement;
-            const templateParent = element.parentElement ?? root;
 
             let templateElements = new Set<Element>();
 
@@ -446,7 +444,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitS
 
                       mapPath(cloned, path, as, i);
 
-                      templateParent.appendChild(cloned);
+                      template.before(cloned);
                       templateElements.add(cloned);
 
                       if (!root.contains(cloned)) {

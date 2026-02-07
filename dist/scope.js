@@ -247,14 +247,13 @@ export function createScope(loader, root) {
                     if (element instanceof HTMLTemplateElement) {
                         const path = attribute.value;
                         const template = element;
-                        const templateParent = element.parentElement ?? root;
                         const templateElements = new Set();
                         registerStateChange(element, path, (next) => {
                             if (next) {
                                 if (!templateElements.size) {
                                     for (const child of template.content.children) {
                                         const cloned = child.cloneNode(true);
-                                        templateParent.appendChild(cloned);
+                                        template.before(cloned);
                                         templateElements.add(cloned);
                                         if (!root.contains(cloned)) {
                                             observeElementTree(cloned);
@@ -292,7 +291,6 @@ export function createScope(loader, root) {
                         const path = attribute.value;
                         const as = element.getAttribute("o-as") ?? "$";
                         const template = element;
-                        const templateParent = element.parentElement ?? root;
                         let templateElements = new Set();
                         const mapPath = (itemElement, each, as, index) => {
                             for (const attribute of itemElement.attributes) {
@@ -339,7 +337,7 @@ export function createScope(loader, root) {
                                         for (const child of template.content.children) {
                                             const cloned = child.cloneNode(true);
                                             mapPath(cloned, path, as, i);
-                                            templateParent.appendChild(cloned);
+                                            template.before(cloned);
                                             templateElements.add(cloned);
                                             if (!root.contains(cloned)) {
                                                 observeElementTree(cloned);
