@@ -21,6 +21,7 @@ export function createScope(loader, root) {
         const refHookMap = new Map();
         const stateHookMap = new Map();
         const stateDependencyMap = new Map();
+        const computedMap = new Map();
         let stateValueMap;
         const getStateHooks = (path) => {
             let hooks = stateHookMap.get(path);
@@ -81,7 +82,11 @@ export function createScope(loader, root) {
                         refHookMap.set(name, refHook);
                         // element already exists
                         if (refElement) {
-                            refHook(refElement, getElementSignal(refElement));
+                            const signal = getElementSignal(refElement);
+                            const unmount = refHook(refElement, signal);
+                            if (typeof unmount === "function") {
+                                signal.addEventListener("abort", unmount);
+                            }
                         }
                     }
                 }
@@ -91,7 +96,7 @@ export function createScope(loader, root) {
                     },
                 });
             },
-            state: (initialState) => {
+            state: (initialState, hooks) => {
                 if (isCalledState) {
                     throw new Error("state() can only be called once");
                 }
@@ -154,13 +159,30 @@ export function createScope(loader, root) {
                     path: "",
                 });
                 stateValueMap = proxied;
-                // notify first time
-                stateHookMap.forEach((hooks, prop) => {
-                    const value = getObjectValue(stateValueMap, prop);
-                    hooks.forEach((hook) => hook(value));
-                });
+                // register state hooks
+                if (hooks) {
+                    for (const path in hooks) {
+                        const hook = hooks[path];
+                        if (typeof hook === "function") {
+                            getStateHooks(path).add(hook.bind(proxied));
+                        }
+                        else {
+                            console.error(`invalid hook for path ${path}`, hook);
+                        }
+                    }
+                }
                 return stateValueMap;
-            }
+            },
+            compute: (expression) => {
+                let fn = computedMap.get(expression);
+                if (!fn) {
+                    // expression must be a valid JavaScript expression from trusted sources
+                    fn = new Function(`return \`${expression}\`;`);
+                    fn = fn.bind(stateValueMap);
+                    computedMap.set(expression, fn);
+                }
+                return fn();
+            },
         };
         // traverse and observe DOM tree
         scopeDisposables.add(observeTree(root, {
@@ -173,7 +195,10 @@ export function createScope(loader, root) {
                         refSignal.addEventListener("abort", () => {
                             refElementMap.delete(refName);
                         });
-                        refHookMap.get(refName)?.(element, refSignal);
+                        const unmount = refHookMap.get(refName)?.(element, refSignal);
+                        if (typeof unmount === "function") {
+                            refSignal.addEventListener("abort", unmount);
+                        }
                     }
                     else if (attribute.name === "o-text") {
                         registerStateChange(element, attribute.value, (next) => {
@@ -376,6 +401,11 @@ export function createScope(loader, root) {
         const propsId = root.getAttribute("o-scope-props");
         const props = propsId ? parseServerSideProps(document.getElementById(propsId)?.textContent) : {};
         component.mount(scope, props);
+        // notify first time
+        stateHookMap.forEach((hooks, prop) => {
+            const value = getObjectValue(stateValueMap, prop);
+            hooks.forEach((hook) => hook(value));
+        });
     });
     // dispose
     return () => {

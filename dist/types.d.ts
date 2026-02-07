@@ -8,7 +8,8 @@ export type OrbitDispose = () => void;
 export type OrbitScope = {
     disposables(...disposables: OrbitDispose[]): void;
     ref<T extends OrbitRefMap>(hooks?: Partial<OrbitRefHooks<T>>): Partial<T>;
-    state<T extends object>(initialState: T): T;
+    state<T extends object>(initialState: T, hooks?: Partial<OrbitStateHookMap<T>>): T;
+    compute(expression: string): string;
 };
 export type OrbitRefMap = {
     [key: string]: Element;
@@ -16,8 +17,11 @@ export type OrbitRefMap = {
 export type OrbitRefHooks<T extends OrbitRefMap> = {
     [key in keyof T]: OrbitRefHook<T[key]>;
 };
-export type OrbitRefHook<E extends Element> = (element: E, signal: AbortSignal) => void;
-export type OrbitStateHook = (value: any) => void;
+export type OrbitRefHook<E extends Element> = (element: E, signal: AbortSignal) => void | (() => void);
+export type OrbitStateHook<T = any> = (value: T) => void;
+export type OrbitStateHookMap<T extends object> = {
+    [key in keyof T]: (this: T, ...args: Parameters<OrbitStateHook<T[key]>>) => void;
+};
 export type OrbitComponentLoader = OrbitComponent<any> | (() => Promise<OrbitComponent<any>>);
 export type OrbitComponent<T extends OrbitComponentProps<any> = undefined> = {
     readonly [ORBIT_COMPONENT_SYMBOL]: true;
