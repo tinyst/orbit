@@ -32,7 +32,7 @@ export function createScope(loader, root) {
             return hooks;
         };
         const registerStateChange = (element, path, hook) => {
-            // console.debug("register state change", path);
+            // console.debug("register state change", path, "from", element);
             // call hook immediately if stateValueMap already initialized
             if (stateValueMap) {
                 hook(getObjectValue(stateValueMap, path));
@@ -185,217 +185,280 @@ export function createScope(loader, root) {
             },
         };
         // traverse and observe DOM tree
-        scopeDisposables.add(observeTree(root, {
-            onMount: (element) => {
-                for (const attribute of element.attributes) {
-                    if (attribute.name === "o-ref") {
-                        const refName = attribute.value;
-                        const refSignal = getElementSignal(element);
-                        refElementMap.set(refName, element);
-                        refSignal.addEventListener("abort", () => {
-                            refElementMap.delete(refName);
-                        });
-                        const unmount = refHookMap.get(refName)?.(element, refSignal);
-                        if (typeof unmount === "function") {
-                            refSignal.addEventListener("abort", unmount);
-                        }
-                    }
-                    else if (attribute.name === "o-text") {
-                        registerStateChange(element, attribute.value, (next) => {
-                            element.textContent = stringifyValue(next);
-                        });
-                    }
-                    else if (attribute.name === "o-html") {
-                        registerStateChange(element, attribute.value, (next) => {
-                            element.innerHTML = stringifyValue(next);
-                        });
-                    }
-                    else if (attribute.name === "o-model") {
-                        if (element instanceof HTMLInputElement) {
-                            const path = attribute.value;
-                            const registerEvent = (type, name) => {
-                                element.addEventListener(type, () => {
-                                    setObjectValue(stateValueMap, path, element[name]);
-                                }, {
-                                    signal: getElementSignal(element),
-                                });
-                            };
-                            if (element.type === "checkbox") {
-                                registerEvent("change", "checked");
-                                registerStateChange(element, path, (next) => {
-                                    element.checked = next;
-                                });
-                            }
-                            else {
-                                registerEvent("input", "value");
-                                registerStateChange(element, path, (next) => {
-                                    element.value = next;
-                                });
-                            }
-                            continue;
-                        }
-                        // TODO: radio input and other elements (can workaround by custom logic inside component)
-                        console.warn("not implemented o-model for", element);
-                    }
-                    else if (attribute.name === "o-if") {
-                        if (element instanceof HTMLTemplateElement) {
-                            const path = attribute.value;
-                            const template = element;
-                            const templateParent = element.parentElement ?? root;
-                            const templateElements = new Set();
-                            registerStateChange(element, path, (next) => {
-                                if (next) {
-                                    if (!templateElements.size) {
-                                        for (const child of template.content.children) {
-                                            const cloned = child.cloneNode(true);
-                                            templateParent.appendChild(cloned);
-                                            templateElements.add(cloned);
-                                        }
-                                    }
-                                }
-                                else if (templateElements.size) {
-                                    // remove self from DOM tree and then MutationObserver will cleanup automatically
-                                    templateElements.forEach((el) => el.remove());
-                                    templateElements.clear();
-                                }
-                            });
-                            getElementSignal(element).addEventListener("abort", () => {
-                                // remove self from DOM tree and then MutationObserver will cleanup automatically
-                                templateElements.forEach((el) => el.remove());
-                                templateElements.clear();
-                            });
-                        }
-                        else {
-                            console.error("o-if can only be used on template element");
-                        }
-                    }
-                    else if (attribute.name === "o-for") {
-                        // for small array only
-                        if (element instanceof HTMLTemplateElement) {
-                            const path = attribute.value;
-                            const as = element.getAttribute("o-as") ?? "$";
-                            const template = element;
-                            const templateParent = element.parentElement ?? root;
-                            let templateElements = new Set();
-                            const mapPath = (itemElement, each, as, index) => {
-                                for (const attribute of itemElement.attributes) {
-                                    if (!attribute.name.startsWith("o-")) {
-                                        continue;
-                                    }
-                                    if (attribute.value.startsWith(`${as}.`)) {
-                                        attribute.value = attribute.value.replace(`${as}.`, `${each}[${index}].`);
-                                    }
-                                    else if (attribute.value === as) {
-                                        attribute.value = `${each}[${index}]`;
-                                    }
-                                }
-                                if (itemElement.children.length) {
-                                    for (const child of itemElement.children) {
-                                        mapPath(child, each, as, index);
-                                    }
-                                }
-                            };
-                            registerStateChange(element, path, (next) => {
-                                if (Array.isArray(next)) {
-                                    if (templateElements.size > next.length) {
-                                        const nextElements = new Set();
-                                        for (const templateElement of templateElements) {
-                                            if (nextElements.size < next.length) {
-                                                nextElements.add(templateElement);
-                                            }
-                                            else {
-                                                // remove self from DOM tree and then MutationObserver will cleanup automatically
-                                                templateElement.remove();
-                                            }
-                                        }
-                                        templateElements = nextElements;
-                                    }
-                                    else if (templateElements.size < next.length) {
-                                        const clonable = template.content.children.item(0);
-                                        if (clonable) {
-                                            for (let i = templateElements.size; i < next.length; i++) {
-                                                const cloned = clonable.cloneNode(true);
-                                                mapPath(cloned, path, as, i);
-                                                templateParent.appendChild(cloned);
-                                                templateElements.add(cloned);
-                                            }
-                                        }
-                                        else {
-                                            console.error(`invalid template for directive o-for:`, template);
-                                        }
-                                    }
-                                }
-                                else if (templateElements.size) {
-                                    // remove self from DOM tree and then MutationObserver will cleanup automatically
-                                    templateElements.forEach((el) => el.remove());
-                                    templateElements.clear();
-                                    console.error(`invalid value for directive o-for:`, template);
-                                }
-                            });
-                            getElementSignal(element).addEventListener("abort", () => {
-                                // remove self from DOM tree and then MutationObserver will cleanup automatically
-                                templateElements.forEach((el) => el.remove());
-                                templateElements.clear();
-                            });
-                        }
-                        else {
-                            console.error("o-for can only be used on template element");
-                        }
-                    }
-                    else if (attribute.name === "o-teleport") {
-                        // quite important (will implement soon) but can workaround by using dialog element instead in some cases
-                        console.warn(`not implemented ${attribute.name} for`, element);
-                    }
-                    else if (attribute.name.startsWith("o-scope") || attribute.name === "o-as") {
-                        // skip
-                        continue;
-                    }
-                    else if (attribute.name.startsWith("o-on")) {
-                        const [type, ...modifiers] = attribute.name.slice(4).split("-");
-                        if (!type) {
-                            console.error("invalid event type", element);
-                            continue;
-                        }
-                        const path = attribute.value;
-                        const prevent = modifiers.includes("prevent");
-                        const stop = modifiers.includes("stop");
-                        element.addEventListener(type, (event) => {
-                            if (prevent) {
-                                event.preventDefault();
-                            }
-                            if (stop) {
-                                event.stopPropagation();
-                            }
-                            const fn = getObjectValue(stateValueMap, path);
-                            if (typeof fn === "function") {
-                                fn.bind(stateValueMap)(event);
-                            }
-                        }, {
-                            capture: modifiers.includes("capture"),
-                            once: modifiers.includes("once"),
-                            passive: modifiers.includes("passive"),
-                            signal: getElementSignal(element),
-                        });
-                        // console.error(`not implemented ${attribute.name} for`, element);
-                    }
-                    else if (attribute.name.startsWith("o-")) {
-                        const name = attribute.name.slice(2);
-                        const path = attribute.value;
-                        registerStateChange(element, path, (next) => {
-                            try {
-                                element[name] = next;
-                            }
-                            catch (error) {
-                                console.error(`error setting property ${name} on element`, element, error);
-                            }
-                        });
+        const observeElementTree = (element) => {
+            const dispose = observeTree(element, {
+                onMount,
+                onUnmount,
+            });
+            getElementSignal(element).addEventListener("abort", dispose);
+        };
+        const onMount = (element) => {
+            for (const attribute of element.attributes) {
+                if (attribute.name === "o-ref") {
+                    const refName = attribute.value;
+                    const refSignal = getElementSignal(element);
+                    refElementMap.set(refName, element);
+                    refSignal.addEventListener("abort", () => {
+                        refElementMap.delete(refName);
+                    });
+                    const unmount = refHookMap.get(refName)?.(element, refSignal);
+                    if (typeof unmount === "function") {
+                        refSignal.addEventListener("abort", unmount);
                     }
                 }
-            },
-            onUnmount: (element) => {
-                elementControllerMap.get(element)?.abort();
-                elementControllerMap.delete(element);
-            },
+                else if (attribute.name === "o-text") {
+                    registerStateChange(element, attribute.value, (next) => {
+                        element.textContent = stringifyValue(next);
+                    });
+                }
+                else if (attribute.name === "o-html") {
+                    registerStateChange(element, attribute.value, (next) => {
+                        element.innerHTML = stringifyValue(next);
+                    });
+                }
+                else if (attribute.name === "o-model") {
+                    if (element instanceof HTMLInputElement) {
+                        const path = attribute.value;
+                        const registerEvent = (type, name) => {
+                            element.addEventListener(type, () => {
+                                setObjectValue(stateValueMap, path, element[name]);
+                            }, {
+                                signal: getElementSignal(element),
+                            });
+                        };
+                        if (element.type === "checkbox") {
+                            registerEvent("change", "checked");
+                            registerStateChange(element, path, (next) => {
+                                element.checked = next;
+                            });
+                        }
+                        else {
+                            registerEvent("input", "value");
+                            registerStateChange(element, path, (next) => {
+                                element.value = next;
+                            });
+                        }
+                        continue;
+                    }
+                    // TODO: radio input and other elements (can workaround by custom logic inside component)
+                    console.warn("not implemented o-model for", element);
+                }
+                else if (attribute.name === "o-if") {
+                    if (element instanceof HTMLTemplateElement) {
+                        const path = attribute.value;
+                        const template = element;
+                        const templateParent = element.parentElement ?? root;
+                        const templateElements = new Set();
+                        registerStateChange(element, path, (next) => {
+                            if (next) {
+                                if (!templateElements.size) {
+                                    for (const child of template.content.children) {
+                                        const cloned = child.cloneNode(true);
+                                        templateParent.appendChild(cloned);
+                                        templateElements.add(cloned);
+                                        if (!root.contains(cloned)) {
+                                            observeElementTree(cloned);
+                                        }
+                                    }
+                                }
+                            }
+                            else if (templateElements.size) {
+                                // cleanup and remove self from DOM tree
+                                templateElements.forEach((el) => {
+                                    elementControllerMap.get(el)?.abort();
+                                    elementControllerMap.delete(el);
+                                    el.remove();
+                                });
+                                templateElements.clear();
+                            }
+                        });
+                        getElementSignal(element).addEventListener("abort", () => {
+                            // cleanup and remove self from DOM tree
+                            templateElements.forEach((el) => {
+                                elementControllerMap.get(el)?.abort();
+                                elementControllerMap.delete(el);
+                                el.remove();
+                            });
+                            templateElements.clear();
+                        });
+                    }
+                    else {
+                        console.error("o-if can only be used on template element");
+                    }
+                }
+                else if (attribute.name === "o-for") {
+                    // for small array only
+                    if (element instanceof HTMLTemplateElement) {
+                        const path = attribute.value;
+                        const as = element.getAttribute("o-as") ?? "$";
+                        const template = element;
+                        const templateParent = element.parentElement ?? root;
+                        let templateElements = new Set();
+                        const mapPath = (itemElement, each, as, index) => {
+                            for (const attribute of itemElement.attributes) {
+                                if (!attribute.name.startsWith("o-") || attribute.name.startsWith("o-scope") || attribute.name.startsWith("o-for")) {
+                                    continue;
+                                }
+                                if (attribute.value.startsWith(`${as}.`)) {
+                                    attribute.value = attribute.value.replace(`${as}.`, `${each}[${index}].`);
+                                }
+                                else if (attribute.value === as) {
+                                    attribute.value = `${each}[${index}]`;
+                                }
+                            }
+                            if (itemElement instanceof HTMLTemplateElement) {
+                                for (const child of itemElement.content.children) {
+                                    mapPath(child, each, as, index);
+                                }
+                            }
+                            else if (itemElement.children.length) {
+                                for (const child of itemElement.children) {
+                                    mapPath(child, each, as, index);
+                                }
+                            }
+                        };
+                        registerStateChange(element, path, (next) => {
+                            if (Array.isArray(next)) {
+                                if (templateElements.size > next.length) {
+                                    const nextElements = new Set();
+                                    for (const templateElement of templateElements) {
+                                        if (nextElements.size < next.length) {
+                                            nextElements.add(templateElement);
+                                        }
+                                        else {
+                                            // cleanup and remove self from DOM tree
+                                            elementControllerMap.get(templateElement)?.abort();
+                                            elementControllerMap.delete(templateElement);
+                                            templateElement.remove();
+                                        }
+                                    }
+                                    templateElements = nextElements;
+                                }
+                                else if (templateElements.size < next.length) {
+                                    for (let i = templateElements.size; i < next.length; i++) {
+                                        for (const child of template.content.children) {
+                                            const cloned = child.cloneNode(true);
+                                            mapPath(cloned, path, as, i);
+                                            templateParent.appendChild(cloned);
+                                            templateElements.add(cloned);
+                                            if (!root.contains(cloned)) {
+                                                observeElementTree(cloned);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else if (templateElements.size) {
+                                // cleanup and remove self from DOM tree
+                                templateElements.forEach((el) => {
+                                    elementControllerMap.get(el)?.abort();
+                                    elementControllerMap.delete(el);
+                                    el.remove();
+                                });
+                                templateElements.clear();
+                                console.error(`invalid value for directive o-for:`, template);
+                            }
+                        });
+                        getElementSignal(element).addEventListener("abort", () => {
+                            // cleanup and remove self from DOM tree
+                            templateElements.forEach((el) => {
+                                elementControllerMap.get(el)?.abort();
+                                elementControllerMap.delete(el);
+                                el.remove();
+                            });
+                            templateElements.clear();
+                        });
+                    }
+                    else {
+                        console.error("o-for can only be used on template element");
+                    }
+                }
+                else if (attribute.name === "o-teleport") {
+                    const selector = attribute.value;
+                    const target = document.querySelector(selector);
+                    if (!target) {
+                        console.error(`target element not found for o-teleport: ${selector}`);
+                        continue;
+                    }
+                    if (element instanceof HTMLTemplateElement) {
+                        const template = element;
+                        const templateParent = target;
+                        const templateElements = new Set();
+                        for (const child of template.content.children) {
+                            const cloned = child.cloneNode(true);
+                            templateParent.appendChild(cloned);
+                            templateElements.add(cloned);
+                            if (!root.contains(cloned)) {
+                                observeElementTree(cloned);
+                            }
+                        }
+                        getElementSignal(element).addEventListener("abort", () => {
+                            // cleanup and remove self from DOM tree
+                            templateElements.forEach((el) => {
+                                elementControllerMap.get(el)?.abort();
+                                elementControllerMap.delete(el);
+                                el.remove();
+                            });
+                            templateElements.clear();
+                        });
+                    }
+                    else {
+                        console.error("o-teleport can only be used on template element");
+                    }
+                }
+                else if (attribute.name.startsWith("o-scope") || attribute.name === "o-as") {
+                    // skip
+                    continue;
+                }
+                else if (attribute.name.startsWith("o-on")) {
+                    const [type, ...modifiers] = attribute.name.slice(4).split("-");
+                    if (!type) {
+                        console.error("invalid event type", element);
+                        continue;
+                    }
+                    const path = attribute.value;
+                    const prevent = modifiers.includes("prevent");
+                    const stop = modifiers.includes("stop");
+                    element.addEventListener(type, (event) => {
+                        if (prevent) {
+                            event.preventDefault();
+                        }
+                        if (stop) {
+                            event.stopPropagation();
+                        }
+                        const fn = getObjectValue(stateValueMap, path);
+                        if (typeof fn === "function") {
+                            fn.bind(stateValueMap)(event);
+                        }
+                    }, {
+                        capture: modifiers.includes("capture"),
+                        once: modifiers.includes("once"),
+                        passive: modifiers.includes("passive"),
+                        signal: getElementSignal(element),
+                    });
+                    // console.error(`not implemented ${attribute.name} for`, element);
+                }
+                else if (attribute.name.startsWith("o-")) {
+                    const name = attribute.name.slice(2);
+                    const path = attribute.value;
+                    registerStateChange(element, path, (next) => {
+                        try {
+                            element[name] = next;
+                        }
+                        catch (error) {
+                            console.error(`error setting property ${name} on element`, element, error);
+                        }
+                    });
+                }
+            }
+        };
+        const onUnmount = (element) => {
+            elementControllerMap.get(element)?.abort();
+            elementControllerMap.delete(element);
+        };
+        scopeDisposables.add(observeTree(root, {
+            onMount,
+            onUnmount,
         }));
         // render/hydration
         component.mount(scope, getProps(root));
@@ -405,12 +468,13 @@ export function createScope(loader, root) {
             hooks.forEach((hook) => hook(value));
         });
     });
-    // dispose
-    return () => {
-        elementControllerMap.forEach((controller) => controller.abort());
-        elementControllerMap.clear();
-        scopeDisposables.forEach((disposable) => disposable());
-        scopeController.abort();
+    return {
+        dispose: () => {
+            elementControllerMap.forEach((controller) => controller.abort());
+            elementControllerMap.clear();
+            scopeDisposables.forEach((disposable) => disposable());
+            scopeController.abort();
+        },
     };
 }
 async function getComponentBehavior(loader) {

@@ -7,7 +7,7 @@ export function getOrbit() {
         return orbit;
     }
     const loaders = new Map();
-    const disposes = new Map();
+    const scopes = new Map();
     const disposables = [];
     const onBeforeUnload = () => {
         window.removeEventListener("beforeunload", onBeforeUnload);
@@ -27,20 +27,20 @@ export function getOrbit() {
                     const name = element.getAttribute("o-scope");
                     const loader = loaders.get(name);
                     if (loader) {
-                        disposes.set(element, createScope(loader, element));
+                        scopes.set(element, createScope(loader, element));
                     }
                 },
                 onUnmount: (element) => {
-                    disposes.get(element)?.();
-                    disposes.delete(element);
+                    scopes.get(element)?.dispose();
+                    scopes.delete(element);
                 },
             }));
             window.addEventListener("beforeunload", onBeforeUnload);
         },
         stop() {
             disposables.forEach((dispose) => dispose());
-            disposes.forEach((dispose) => dispose());
-            disposes.clear();
+            scopes.forEach((controller) => controller.dispose());
+            scopes.clear();
         },
     };
     return orbit;

@@ -5,6 +5,9 @@ export type Orbit = {
     stop(): void;
 };
 export type OrbitDispose = () => void;
+export type OrbitScopeController = {
+    dispose: OrbitDispose;
+};
 export type OrbitScope = {
     disposables(...disposables: OrbitDispose[]): void;
     ref<T extends OrbitRefMap>(hooks?: Partial<OrbitRefHooks<T>>): Partial<T>;

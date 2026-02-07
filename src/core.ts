@@ -1,6 +1,6 @@
 import { ORBIT_COMPONENT_SYMBOL } from "./constants.js";
 import { createScope } from "./scope.js";
-import type { Orbit, OrbitComponent, OrbitComponentFn, OrbitComponentLoader, OrbitComponentProps, OrbitDispose } from "./types.js";
+import type { Orbit, OrbitComponent, OrbitComponentFn, OrbitComponentLoader, OrbitComponentProps, OrbitDispose, OrbitScopeController } from "./types.js";
 
 let orbit: Orbit | undefined;
 
@@ -11,8 +11,7 @@ export function getOrbit(): Orbit {
   }
 
   const loaders = new Map<string, OrbitComponentLoader>();
-
-  const disposes = new Map<Element, OrbitDispose>();
+  const scopes = new Map<Element, OrbitScopeController>();
   const disposables: OrbitDispose[] = [];
 
   const onBeforeUnload = () => {
@@ -39,13 +38,13 @@ export function getOrbit(): Orbit {
             const loader = loaders.get(name);
 
             if (loader) {
-              disposes.set(element, createScope(loader, element));
+              scopes.set(element, createScope(loader, element));
             }
           },
 
           onUnmount: (element) => {
-            disposes.get(element)?.();
-            disposes.delete(element);
+            scopes.get(element)?.dispose();
+            scopes.delete(element);
           },
         }),
       );
@@ -55,8 +54,9 @@ export function getOrbit(): Orbit {
 
     stop() {
       disposables.forEach((dispose) => dispose());
-      disposes.forEach((dispose) => dispose());
-      disposes.clear();
+
+      scopes.forEach((controller) => controller.dispose());
+      scopes.clear();
     },
   };
 

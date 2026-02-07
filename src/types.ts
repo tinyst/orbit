@@ -8,6 +8,10 @@ export type Orbit = {
 
 export type OrbitDispose = () => void;
 
+export type OrbitScopeController = {
+  dispose: OrbitDispose;
+};
+
 // scope
 export type OrbitScope = {
   disposables(...disposables: OrbitDispose[]): void;
