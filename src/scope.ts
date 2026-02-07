@@ -1,5 +1,5 @@
 import { MUTABLE_ARRAY_METHODS, ORBIT_COMPONENT_SYMBOL } from "./constants.js";
-import { getObjectValue, parseServerSideProps, setObjectValue, stringifyValue } from "./helper.js";
+import { concatPath, getObjectValue, parseServerSideProps, setObjectValue, stringifyValue } from "./helper.js";
 import type { OrbitComponent, OrbitComponentLoader, OrbitDispose, OrbitRefHook, OrbitScope, OrbitStateHook } from "./types.js";
 
 export function createScope(loader: OrbitComponentLoader, root: Element): OrbitDispose {
@@ -46,21 +46,26 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
       return hooks;
     };
 
-    const subscribeStateChange = <E extends Element, N extends keyof E>(element: E, name: N, path: string, stringify?: (value: any) => string) => {
-      const hook: OrbitStateHook = (next) => {
-        element[name] = stringify?.(next) ?? next;
-      };
+    const registerStateChange = (element: Element, path: string, hook: OrbitStateHook) => {
+      // console.debug("register state change", path);
 
+      // call hook immediately if stateValueMap already initialized
       if (stateValueMap) {
         hook(getObjectValue(stateValueMap, path));
       }
 
-      const hooks = getStateHooks(path);
-
-      hooks.add(hook);
-
+      getStateHooks(path).add(hook);
       getElementSignal(element).addEventListener("abort", () => {
-        hooks.delete(hook);
+        const hooks = stateHookMap.get(path);
+
+        // "Set" may not exist if element is already aborted
+        hooks?.delete(hook);
+
+        // check if hooks is empty (then delete from map)
+        if (hooks?.size === 0) {
+          stateHookMap.delete(path);
+          // console.debug(`no hooks registered for path "${path}"`);
+        }
       });
     };
 
@@ -68,7 +73,17 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
       // console.debug("notify state change to", path);
 
       const next = getObjectValue(stateValueMap, path);
-      stateHookMap.get(path)?.forEach((hook) => hook(next));
+      const hooks = stateHookMap.get(path);
+
+      // check if hooks is empty (then delete from map)
+      if (hooks?.size === 0) {
+        stateHookMap.delete(path);
+        // console.debug(`no hooks registered for path "${path}"`);
+      }
+
+      else {
+        hooks?.forEach((hook) => hook(next));
+      }
 
       // notify nested dependencies
       stateDependencyMap.get(path)?.forEach((dependency) => notifyStateChange(dependency));
@@ -123,12 +138,10 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
         };
 
         const proxify = <T extends object>(src: T, state: ProxyState) => {
-          const concat = (path: string, part: string) => path.length ? `${path}.${part}` : part;
-
           return new Proxy(src, {
             get(target, prop, receiver) {
               if (typeof prop === "string") {
-                const path = concat(state.path, prop);
+                const path = concatPath(state.path, prop);
 
                 if (state.caller?.length) {
                   let stateDependencies = stateDependencyMap.get(path);
@@ -185,7 +198,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
               }
 
               if (typeof prop === "string") {
-                notifyStateChange(concat(state.path, prop));
+                notifyStateChange(concatPath(state.path, prop));
               }
 
               return true;
@@ -226,33 +239,41 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
           }
 
           else if (attribute.name === "o-text") {
-            subscribeStateChange(element, "textContent", attribute.value, stringifyValue);
+            registerStateChange(element, attribute.value, (next) => {
+              element.textContent = stringifyValue(next);
+            });
           }
 
           else if (attribute.name === "o-html") {
-            subscribeStateChange(element, "innerHTML", attribute.value, stringifyValue);
+            registerStateChange(element, attribute.value, (next) => {
+              element.innerHTML = stringifyValue(next);
+            });
           }
 
           else if (attribute.name === "o-model") {
             if (element instanceof HTMLInputElement) {
-              const prop = attribute.value;
+              const path = attribute.value;
 
-              const bindEvent = (type: "change" | "input", name: "checked" | "value") => {
+              const registerEvent = (type: "change" | "input", name: "checked" | "value") => {
                 element.addEventListener(type, () => {
-                  setObjectValue(stateValueMap, prop, element[name]);
+                  setObjectValue(stateValueMap, path, element[name]);
                 }, {
                   signal: getElementSignal(element),
                 });
               };
 
               if (element.type === "checkbox") {
-                subscribeStateChange(element, "checked", prop);
-                bindEvent("change", "checked");
+                registerEvent("change", "checked");
+                registerStateChange(element, path, (next: boolean) => {
+                  element.checked = next;
+                });
               }
 
               else {
-                subscribeStateChange(element, "value", prop);
-                bindEvent("input", "value");
+                registerEvent("input", "value");
+                registerStateChange(element, path, (next: string) => {
+                  element.value = next;
+                });
               }
 
               continue;
@@ -263,13 +284,135 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
           }
 
           else if (attribute.name === "o-if") {
-            // quite important (will implement soon)
-            console.warn(`not implemented ${attribute.name} for`, element);
+            if (element instanceof HTMLTemplateElement) {
+              const path = attribute.value;
+
+              const template = element as HTMLTemplateElement;
+              const templateParent = element.parentElement ?? root;
+              const templateElements = new Set<Element>();
+
+              registerStateChange(element, path, (next) => {
+                if (next) {
+                  if (!templateElements.size) {
+                    for (const child of template.content.children) {
+                      const cloned = child.cloneNode(true) as Element;
+
+                      templateParent.appendChild(cloned);
+                      templateElements.add(cloned);
+                    }
+                  }
+                }
+
+                else if (templateElements.size) {
+                  // remove self from DOM tree and then MutationObserver will cleanup automatically
+                  templateElements.forEach((el) => el.remove());
+                  templateElements.clear();
+                }
+              });
+
+              getElementSignal(element).addEventListener("abort", () => {
+                // remove self from DOM tree and then MutationObserver will cleanup automatically
+                templateElements.forEach((el) => el.remove());
+                templateElements.clear();
+              });
+            }
+
+            else {
+              console.error("o-if can only be used on template element");
+            }
           }
 
           else if (attribute.name === "o-for") {
-            // TODO: render simple array only (still requires custom logic on js for large arrays to do virtualization instead)
-            console.warn(`not implemented ${attribute.name} for`, element);
+            // for small array only
+            if (element instanceof HTMLTemplateElement) {
+              const path = attribute.value;
+              const as = element.getAttribute("as") ?? "$";
+
+              const template = element as HTMLTemplateElement;
+              const templateParent = element.parentElement ?? root;
+
+              let templateElements = new Set<Element>();
+
+              const mapPath = (itemElement: Element, each: string, as: string, index: number) => {
+                for (const attribute of itemElement.attributes) {
+                  if (!attribute.name.startsWith("o-")) {
+                    continue;
+                  }
+
+                  if (attribute.value.startsWith(`${as}.`)) {
+                    attribute.value = attribute.value.replace(`${as}.`, `${each}[${index}].`);
+                  }
+
+                  else if (attribute.value === as) {
+                    attribute.value = `${each}[${index}]`;
+                  }
+                }
+
+                if (itemElement.children.length) {
+                  for (const child of itemElement.children) {
+                    mapPath(child, each, as, index);
+                  }
+                }
+              };
+
+              registerStateChange(element, path, (next) => {
+                if (Array.isArray(next)) {
+                  if (templateElements.size > next.length) {
+                    const nextElements = new Set<Element>();
+
+                    for (const templateElement of templateElements) {
+                      if (nextElements.size < next.length) {
+                        nextElements.add(templateElement);
+                      }
+
+                      else {
+                        // remove self from DOM tree and then MutationObserver will cleanup automatically
+                        templateElement.remove();
+                      }
+                    }
+
+                    templateElements = nextElements;
+                  }
+
+                  else if (templateElements.size < next.length) {
+                    const clonable = template.content.children.item(0);
+
+                    if (clonable) {
+                      for (let i = templateElements.size; i < next.length; i++) {
+                        const cloned = clonable.cloneNode(true) as Element;
+
+                        mapPath(cloned, path, as, i);
+
+                        templateParent.appendChild(cloned);
+                        templateElements.add(cloned);
+                      }
+                    }
+
+                    else {
+                      console.error(`invalid template for directive o-for:`, template);
+                    }
+                  }
+                }
+
+                else if (templateElements.size) {
+                  // remove self from DOM tree and then MutationObserver will cleanup automatically
+                  templateElements.forEach((el) => el.remove());
+                  templateElements.clear();
+
+                  console.error(`invalid value for directive o-for:`, template);
+                }
+              });
+
+              getElementSignal(element).addEventListener("abort", () => {
+                // remove self from DOM tree and then MutationObserver will cleanup automatically
+                templateElements.forEach((el) => el.remove());
+                templateElements.clear();
+              });
+            }
+
+            else {
+              console.error("o-for can only be used on template element");
+            }
           }
 
           else if (attribute.name === "o-teleport") {
@@ -323,7 +466,13 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
             const name = attribute.name.slice(2);
             const path = attribute.value;
 
-            subscribeStateChange(element, name as keyof typeof element, path);
+            registerStateChange(element, path, (next) => {
+              try {
+                (element as any)[name] = next;
+              } catch (error) {
+                console.error(`error setting property ${name} on element`, element, error);
+              }
+            });
           }
         }
       },

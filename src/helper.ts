@@ -9,7 +9,7 @@ export function getObjectValue(src: Record<FieldPath, any> | undefined, path: Fi
     return src[path];
   }
 
-  const parts = path.split(".");
+  const parts = extractPath(path);
 
   let current = src;
 
@@ -34,7 +34,7 @@ export function setObjectValue(src: Record<FieldPath, any> | undefined, path: Fi
     return;
   }
 
-  const parts = path.split(".");
+  const parts = extractPath(path);
 
   if (!parts.length) {
     return;
@@ -59,6 +59,18 @@ export function setObjectValue(src: Record<FieldPath, any> | undefined, path: Fi
 
 export function isObject(value: any): value is object {
   return value && typeof value === "object";
+}
+
+export function extractPath(path: string) {
+  return path.replace(/\[(-?[\d]+)\]/g, ".$1").split(".").filter(Boolean);
+}
+
+export function concatPath(path: string, part: string) {
+  if (part.match(/-?[\d]+/)) {
+    return path.length ? `${path}[${part}]` : `[${part}]`;
+  }
+
+  return path.length ? `${path}.${part}` : part;
 }
 
 export function stringifyValue(value: any) {

@@ -1,5 +1,5 @@
 import { MUTABLE_ARRAY_METHODS, ORBIT_COMPONENT_SYMBOL } from "./constants.js";
-import { getObjectValue, parseServerSideProps, setObjectValue, stringifyValue } from "./helper.js";
+import { concatPath, getObjectValue, parseServerSideProps, setObjectValue, stringifyValue } from "./helper.js";
 export function createScope(loader, root) {
     const scopeController = new AbortController();
     const scopeSignal = scopeController.signal;
@@ -30,23 +30,36 @@ export function createScope(loader, root) {
             }
             return hooks;
         };
-        const subscribeStateChange = (element, name, path, stringify) => {
-            const hook = (next) => {
-                element[name] = stringify?.(next) ?? next;
-            };
+        const registerStateChange = (element, path, hook) => {
+            // console.debug("register state change", path);
+            // call hook immediately if stateValueMap already initialized
             if (stateValueMap) {
                 hook(getObjectValue(stateValueMap, path));
             }
-            const hooks = getStateHooks(path);
-            hooks.add(hook);
+            getStateHooks(path).add(hook);
             getElementSignal(element).addEventListener("abort", () => {
-                hooks.delete(hook);
+                const hooks = stateHookMap.get(path);
+                // "Set" may not exist if element is already aborted
+                hooks?.delete(hook);
+                // check if hooks is empty (then delete from map)
+                if (hooks?.size === 0) {
+                    stateHookMap.delete(path);
+                    // console.debug(`no hooks registered for path "${path}"`);
+                }
             });
         };
         const notifyStateChange = (path) => {
             // console.debug("notify state change to", path);
             const next = getObjectValue(stateValueMap, path);
-            stateHookMap.get(path)?.forEach((hook) => hook(next));
+            const hooks = stateHookMap.get(path);
+            // check if hooks is empty (then delete from map)
+            if (hooks?.size === 0) {
+                stateHookMap.delete(path);
+                // console.debug(`no hooks registered for path "${path}"`);
+            }
+            else {
+                hooks?.forEach((hook) => hook(next));
+            }
             // notify nested dependencies
             stateDependencyMap.get(path)?.forEach((dependency) => notifyStateChange(dependency));
         };
@@ -84,11 +97,10 @@ export function createScope(loader, root) {
                 }
                 isCalledState = true;
                 const proxify = (src, state) => {
-                    const concat = (path, part) => path.length ? `${path}.${part}` : part;
                     return new Proxy(src, {
                         get(target, prop, receiver) {
                             if (typeof prop === "string") {
-                                const path = concat(state.path, prop);
+                                const path = concatPath(state.path, prop);
                                 if (state.caller?.length) {
                                     let stateDependencies = stateDependencyMap.get(path);
                                     if (!stateDependencies) {
@@ -132,7 +144,7 @@ export function createScope(loader, root) {
                                 return false;
                             }
                             if (typeof prop === "string") {
-                                notifyStateChange(concat(state.path, prop));
+                                notifyStateChange(concatPath(state.path, prop));
                             }
                             return true;
                         },
@@ -164,28 +176,36 @@ export function createScope(loader, root) {
                         refHookMap.get(refName)?.(element, refSignal);
                     }
                     else if (attribute.name === "o-text") {
-                        subscribeStateChange(element, "textContent", attribute.value, stringifyValue);
+                        registerStateChange(element, attribute.value, (next) => {
+                            element.textContent = stringifyValue(next);
+                        });
                     }
                     else if (attribute.name === "o-html") {
-                        subscribeStateChange(element, "innerHTML", attribute.value, stringifyValue);
+                        registerStateChange(element, attribute.value, (next) => {
+                            element.innerHTML = stringifyValue(next);
+                        });
                     }
                     else if (attribute.name === "o-model") {
                         if (element instanceof HTMLInputElement) {
-                            const prop = attribute.value;
-                            const bindEvent = (type, name) => {
+                            const path = attribute.value;
+                            const registerEvent = (type, name) => {
                                 element.addEventListener(type, () => {
-                                    setObjectValue(stateValueMap, prop, element[name]);
+                                    setObjectValue(stateValueMap, path, element[name]);
                                 }, {
                                     signal: getElementSignal(element),
                                 });
                             };
                             if (element.type === "checkbox") {
-                                subscribeStateChange(element, "checked", prop);
-                                bindEvent("change", "checked");
+                                registerEvent("change", "checked");
+                                registerStateChange(element, path, (next) => {
+                                    element.checked = next;
+                                });
                             }
                             else {
-                                subscribeStateChange(element, "value", prop);
-                                bindEvent("input", "value");
+                                registerEvent("input", "value");
+                                registerStateChange(element, path, (next) => {
+                                    element.value = next;
+                                });
                             }
                             continue;
                         }
@@ -193,12 +213,109 @@ export function createScope(loader, root) {
                         console.warn("not implemented o-model for", element);
                     }
                     else if (attribute.name === "o-if") {
-                        // quite important (will implement soon)
-                        console.warn(`not implemented ${attribute.name} for`, element);
+                        if (element instanceof HTMLTemplateElement) {
+                            const path = attribute.value;
+                            const template = element;
+                            const templateParent = element.parentElement ?? root;
+                            const templateElements = new Set();
+                            registerStateChange(element, path, (next) => {
+                                if (next) {
+                                    if (!templateElements.size) {
+                                        for (const child of template.content.children) {
+                                            const cloned = child.cloneNode(true);
+                                            templateParent.appendChild(cloned);
+                                            templateElements.add(cloned);
+                                        }
+                                    }
+                                }
+                                else if (templateElements.size) {
+                                    // remove self from DOM tree and then MutationObserver will cleanup automatically
+                                    templateElements.forEach((el) => el.remove());
+                                    templateElements.clear();
+                                }
+                            });
+                            getElementSignal(element).addEventListener("abort", () => {
+                                // remove self from DOM tree and then MutationObserver will cleanup automatically
+                                templateElements.forEach((el) => el.remove());
+                                templateElements.clear();
+                            });
+                        }
+                        else {
+                            console.error("o-if can only be used on template element");
+                        }
                     }
                     else if (attribute.name === "o-for") {
-                        // TODO: render simple array only (still requires custom logic on js for large arrays to do virtualization instead)
-                        console.warn(`not implemented ${attribute.name} for`, element);
+                        // for small array only
+                        if (element instanceof HTMLTemplateElement) {
+                            const path = attribute.value;
+                            const as = element.getAttribute("as") ?? "$";
+                            const template = element;
+                            const templateParent = element.parentElement ?? root;
+                            let templateElements = new Set();
+                            const mapPath = (itemElement, each, as, index) => {
+                                for (const attribute of itemElement.attributes) {
+                                    if (!attribute.name.startsWith("o-")) {
+                                        continue;
+                                    }
+                                    if (attribute.value.startsWith(`${as}.`)) {
+                                        attribute.value = attribute.value.replace(`${as}.`, `${each}[${index}].`);
+                                    }
+                                    else if (attribute.value === as) {
+                                        attribute.value = `${each}[${index}]`;
+                                    }
+                                }
+                                if (itemElement.children.length) {
+                                    for (const child of itemElement.children) {
+                                        mapPath(child, each, as, index);
+                                    }
+                                }
+                            };
+                            registerStateChange(element, path, (next) => {
+                                if (Array.isArray(next)) {
+                                    if (templateElements.size > next.length) {
+                                        const nextElements = new Set();
+                                        for (const templateElement of templateElements) {
+                                            if (nextElements.size < next.length) {
+                                                nextElements.add(templateElement);
+                                            }
+                                            else {
+                                                // remove self from DOM tree and then MutationObserver will cleanup automatically
+                                                templateElement.remove();
+                                            }
+                                        }
+                                        templateElements = nextElements;
+                                    }
+                                    else if (templateElements.size < next.length) {
+                                        const clonable = template.content.children.item(0);
+                                        if (clonable) {
+                                            for (let i = templateElements.size; i < next.length; i++) {
+                                                const cloned = clonable.cloneNode(true);
+                                                mapPath(cloned, path, as, i);
+                                                templateParent.appendChild(cloned);
+                                                templateElements.add(cloned);
+                                            }
+                                        }
+                                        else {
+                                            console.error(`invalid template for directive o-for:`, template);
+                                        }
+                                    }
+                                }
+                                else if (templateElements.size) {
+                                    // remove self from DOM tree and then MutationObserver will cleanup automatically
+                                    templateElements.forEach((el) => el.remove());
+                                    templateElements.clear();
+                                    console.error(`invalid value for directive o-for:`, template);
+                                }
+                            });
+                            getElementSignal(element).addEventListener("abort", () => {
+                                // remove self from DOM tree and then MutationObserver will cleanup automatically
+                                templateElements.forEach((el) => el.remove());
+                                templateElements.clear();
+                            });
+                        }
+                        else {
+                            console.error("o-for can only be used on template element");
+                        }
                     }
                     else if (attribute.name === "o-teleport") {
                         // quite important (will implement soon) but can workaround by using dialog element instead in some cases
@@ -239,7 +356,14 @@ export function createScope(loader, root) {
                     else if (attribute.name.startsWith("o-")) {
                         const name = attribute.name.slice(2);
                         const path = attribute.value;
-                        subscribeStateChange(element, name, path);
+                        registerStateChange(element, path, (next) => {
+                            try {
+                                element[name] = next;
+                            }
+                            catch (error) {
+                                console.error(`error setting property ${name} on element`, element, error);
+                            }
+                        });
                     }
                 }
             },

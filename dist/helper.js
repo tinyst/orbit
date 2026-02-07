@@ -5,7 +5,7 @@ export function getObjectValue(src, path) {
     if (typeof path !== "string") {
         return src[path];
     }
-    const parts = path.split(".");
+    const parts = extractPath(path);
     let current = src;
     for (let i = 0; i < parts.length && isObject(current); i++) {
         const part = parts[i];
@@ -23,7 +23,7 @@ export function setObjectValue(src, path, value) {
         src[path] = value;
         return;
     }
-    const parts = path.split(".");
+    const parts = extractPath(path);
     if (!parts.length) {
         return;
     }
@@ -41,6 +41,15 @@ export function setObjectValue(src, path, value) {
 }
 export function isObject(value) {
     return value && typeof value === "object";
+}
+export function extractPath(path) {
+    return path.replace(/\[(-?[\d]+)\]/g, ".$1").split(".").filter(Boolean);
+}
+export function concatPath(path, part) {
+    if (part.match(/-?[\d]+/)) {
+        return path.length ? `${path}[${part}]` : `[${part}]`;
+    }
+    return path.length ? `${path}.${part}` : part;
 }
 export function stringifyValue(value) {
     if (value === null || value === undefined) {

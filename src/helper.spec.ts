@@ -1,6 +1,31 @@
 import { expect, test } from "bun:test";
-import { getObjectValue, parseServerSideProps, setObjectValue, stringifyValue } from "./helper";
+import { concatPath, extractPath, getObjectValue, parseServerSideProps, setObjectValue, stringifyValue } from "./helper";
 
+// test simple functions first
+test("should extract path", () => {
+  expect(extractPath("")).toEqual([]);
+  expect(extractPath("nested")).toEqual(["nested"]);
+  expect(extractPath("parent.nested")).toEqual(["parent", "nested"]);
+  expect(extractPath("parent[1]")).toEqual(["parent", "1"]);
+  expect(extractPath("parent[1].nested")).toEqual(["parent", "1", "nested"]);
+  expect(extractPath("parent[-1]")).toEqual(["parent", "-1"]);
+  expect(extractPath("parent[-1].nested")).toEqual(["parent", "-1", "nested"]);
+  expect(extractPath("parent[-1].nested[0]")).toEqual(["parent", "-1", "nested", "0"]);
+});
+
+test("should concat path", () => {
+  expect(concatPath("", "nested")).toEqual("nested");
+  expect(concatPath("parent", "nested")).toEqual("parent.nested");
+  expect(concatPath("parent", "1")).toEqual("parent[1]");
+  expect(concatPath("parent[1]", "1")).toEqual("parent[1][1]");
+  expect(concatPath("parent[1]", "nested")).toEqual("parent[1].nested");
+  expect(concatPath("parent", "-1")).toEqual("parent[-1]");
+  expect(concatPath("parent[-1]", "1")).toEqual("parent[-1][1]");
+  expect(concatPath("parent[-1]", "nested")).toEqual("parent[-1].nested");
+  expect(concatPath("parent[-1]", "nested[1]")).toEqual("parent[-1][nested[1]]"); // should not happen in orbit
+});
+
+//////////////////////////////////////////
 const KEY = Symbol.for("KEY");
 
 type MyObject = {
@@ -63,9 +88,9 @@ test("should get correct field", () => {
   expect(getObjectValue(o, "e.nested")).toEqual("world");
   expect(getObjectValue(o, "f[-1].nested")).toEqual(undefined);
   expect(getObjectValue(o, "f.-1.nested")).toEqual(undefined);
-  expect(getObjectValue(o, "f[0].nested")).toEqual(undefined);
+  expect(getObjectValue(o, "f[0].nested")).toEqual(true);
   expect(getObjectValue(o, "f.0.nested")).toEqual(true);
-  expect(getObjectValue(o, "f[1].nested")).toEqual(undefined);
+  expect(getObjectValue(o, "f[1].nested")).toEqual(false);
   expect(getObjectValue(o, "f.1.nested")).toEqual(false);
   expect(getObjectValue(o, "f.9999.nested")).toEqual(undefined);
   expect(getObjectValue(o, "g.array")).toEqual([{ value: 1 }, { value: 2 }]);
@@ -149,6 +174,9 @@ test("should set correct field", () => {
 
   setObjectValue(o, "g.array.0.value", 2);
   expect(o.g.array[0]?.value).toEqual(2);
+
+  setObjectValue(o, "g.array[0].value", 6);
+  expect(o.g.array[0]?.value).toEqual(6);
 
   setObjectValue(o, "g.array.1.value", 3);
   expect(o.g.array[1]?.value).toEqual(3);
