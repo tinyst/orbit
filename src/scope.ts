@@ -360,7 +360,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
             // for small array only
             if (element instanceof HTMLTemplateElement) {
               const path = attribute.value;
-              const as = element.getAttribute("as") ?? "$";
+              const as = element.getAttribute("o-as") ?? "$";
 
               const template = element as HTMLTemplateElement;
               const templateParent = element.parentElement ?? root;
@@ -454,7 +454,7 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
             console.warn(`not implemented ${attribute.name} for`, element);
           }
 
-          else if (attribute.name.startsWith("o-scope")) {
+          else if (attribute.name.startsWith("o-scope") || attribute.name === "o-as") {
             // skip
             continue;
           }
