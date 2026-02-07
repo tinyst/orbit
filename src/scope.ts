@@ -517,11 +517,8 @@ export function createScope(loader: OrbitComponentLoader, root: Element): OrbitD
       },
     }));
 
-    // hydration
-    const propsId = root.getAttribute("o-scope-props");
-    const props = propsId ? parseServerSideProps(document.getElementById(propsId)?.textContent) : {};
-
-    component.mount(scope, props);
+    // render/hydration
+    component.mount(scope, getProps(root));
 
     // notify first time
     stateHookMap.forEach((hooks, prop) => {
@@ -550,6 +547,17 @@ async function getComponentBehavior(loader: OrbitComponentLoader) {
 
 function isStaticComponentLoader(loader: OrbitComponentLoader): loader is OrbitComponent<any> {
   return (loader && typeof loader === "object" && loader[ORBIT_COMPONENT_SYMBOL]);
+}
+
+function getProps(root: Element) {
+  if (root.hasAttribute("o-scope-props")) {
+    return parseServerSideProps(root.getAttribute("o-scope-props"));
+  }
+
+  const propsId = root.getAttribute("o-scope-props-id");
+  const props = propsId ? parseServerSideProps(document.getElementById(propsId)?.textContent) : {};
+
+  return props;
 }
 
 function observeTree(root: Element, hooks: {

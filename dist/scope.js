@@ -273,7 +273,7 @@ export function createScope(loader, root) {
                         // for small array only
                         if (element instanceof HTMLTemplateElement) {
                             const path = attribute.value;
-                            const as = element.getAttribute("as") ?? "$";
+                            const as = element.getAttribute("o-as") ?? "$";
                             const template = element;
                             const templateParent = element.parentElement ?? root;
                             let templateElements = new Set();
@@ -346,7 +346,7 @@ export function createScope(loader, root) {
                         // quite important (will implement soon) but can workaround by using dialog element instead in some cases
                         console.warn(`not implemented ${attribute.name} for`, element);
                     }
-                    else if (attribute.name.startsWith("o-scope")) {
+                    else if (attribute.name.startsWith("o-scope") || attribute.name === "o-as") {
                         // skip
                         continue;
                     }
@@ -397,10 +397,8 @@ export function createScope(loader, root) {
                 elementControllerMap.delete(element);
             },
         }));
-        // hydration
-        const propsId = root.getAttribute("o-scope-props");
-        const props = propsId ? parseServerSideProps(document.getElementById(propsId)?.textContent) : {};
-        component.mount(scope, props);
+        // render/hydration
+        component.mount(scope, getProps(root));
         // notify first time
         stateHookMap.forEach((hooks, prop) => {
             const value = getObjectValue(stateValueMap, prop);
@@ -423,6 +421,14 @@ async function getComponentBehavior(loader) {
 }
 function isStaticComponentLoader(loader) {
     return (loader && typeof loader === "object" && loader[ORBIT_COMPONENT_SYMBOL]);
+}
+function getProps(root) {
+    if (root.hasAttribute("o-scope-props")) {
+        return parseServerSideProps(root.getAttribute("o-scope-props"));
+    }
+    const propsId = root.getAttribute("o-scope-props-id");
+    const props = propsId ? parseServerSideProps(document.getElementById(propsId)?.textContent) : {};
+    return props;
 }
 function observeTree(root, hooks) {
     const isNestedScope = (element) => {
