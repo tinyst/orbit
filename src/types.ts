@@ -1,4 +1,4 @@
-import type { ORBIT_COMPONENT_SYMBOL } from "./constants.js";
+import type { ORBIT_COMPONENT_SYMBOL, ORBIT_ID_SYMBOL } from "./constants.js";
 
 export type Orbit = {
   register(name: string, loader: OrbitComponentLoader): void;
@@ -13,8 +13,29 @@ export type OrbitScopeController = {
 };
 
 // scope
+export type OrbitScopeId = string & {
+  readonly [ORBIT_ID_SYMBOL]: true;
+};
+
+export type OrbitScopeCacheKey = string | number | symbol;
+export type OrbitScopeCache = {
+  readonly id: OrbitScopeId;
+  readonly instance: OrbitScope;
+
+  readonly computedMap: Map<string, () => string>;
+
+  readonly refElementMap: Map<OrbitScopeCacheKey, Element>;
+  readonly refHookMap: Map<OrbitScopeCacheKey, OrbitRefHook<Element>>;
+
+  readonly stateHookMap: Map<OrbitScopeCacheKey, Set<OrbitStateHook>>;
+  readonly stateDependencyMap: Map<OrbitScopeCacheKey, Set<string>>;
+
+  stateValueMap: Record<OrbitScopeCacheKey, any> | undefined;
+};
+
 export type OrbitScope = {
-  disposables(...disposables: OrbitDispose[]): void;
+  readonly root: Element;
+
   ref<T extends OrbitRefMap>(hooks?: Partial<OrbitRefHooks<T>>): Partial<T>;
   state<T extends object>(initialState: T, hooks?: Partial<OrbitStateHookMap<T>>): T;
   compute(expression: string): string;
@@ -29,7 +50,7 @@ export type OrbitRefHooks<T extends OrbitRefMap> = {
   [key in keyof T]: OrbitRefHook<T[key]>;
 };
 
-export type OrbitRefHook<E extends Element> = (element: E, signal: AbortSignal) => void | (() => void);
+export type OrbitRefHook<E extends Element> = (element: E) => void | (() => void);
 
 // scope -> state
 export type OrbitStateHook<T = any> = (value: T) => void;

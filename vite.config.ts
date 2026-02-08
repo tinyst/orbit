@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => ({
           "page1.html": "tests/page1.tsx",
           "page2.html": "tests/page2.tsx",
           "page3.html": "tests/page3.tsx",
+          "page4.html": "tests/page4.tsx",
         };
 
         return entries;
