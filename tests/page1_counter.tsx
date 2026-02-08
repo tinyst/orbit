@@ -1,5 +1,6 @@
 import { fieldPath } from "@tinyst/fieldpath";
 import { defineComponent } from "../src/core";
+import clsx from "clsx";
 
 export type CounterState = {
   count: number;
@@ -7,8 +8,10 @@ export type CounterState = {
   input: string;
   items: string[];
 
+
   // computed
   readonly computed: string;
+  readonly computedClass: string;
 
   // actions
   increase: () => void;
@@ -37,6 +40,13 @@ export const Counter = defineComponent<CounterProps>((scope, props) => {
 
     get computed() {
       return scope.compute(props.computed);
+    },
+
+    get computedClass() {
+      return clsx({
+        "text-blue-500": this.count <= 10,
+        "text-red-500": this.count > 10,
+      });
     },
 
     increase() {
@@ -70,7 +80,7 @@ export function CounterView() {
         o-scope-props-id={propsId}
       >
         <p o-text={state.count}>{`{{ ${state.count} }}`}</p>
-        <p o-text={state.computed}>{`{{ ${context.computedValue} }}`}</p>
+        <p o-text={state.computed} o-class={state.computedClass}>{`{{ ${context.computedValue} }}`}</p>
         <input o-model={state.disabled} type="checkbox" />
         <input
           o-disabled={state.disabled}

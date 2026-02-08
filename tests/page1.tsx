@@ -12,6 +12,7 @@ export function preact() {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>My Page</title>
+        <link rel="stylesheet" href="/tests/page1.css" />
         <script type="module" src="/tests/page1_script.ts" />
       </head>
       <body>

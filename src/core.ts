@@ -128,6 +128,12 @@ export function getOrbit(): Orbit {
         }
       }
 
+      else if (attribute.name === "o-class") {
+        registerStateChange(scopeCache, element, attribute.value, (next) => {
+          element.className = stringifyValue(next);
+        });
+      }
+
       else if (attribute.name === "o-text") {
         registerStateChange(scopeCache, element, attribute.value, (next) => {
           element.textContent = stringifyValue(next);

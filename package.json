@@ -30,6 +30,7 @@
     "@types/nunjucks": "3.2.6",
     "@types/react": "19.2.13",
     "@types/react-dom": "19.2.3",
+    "clsx": "2.1.1",
     "husky": "9.1.7",
     "nunjucks": "3.2.4",
     "preact": "10.28.2",
