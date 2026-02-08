@@ -98,6 +98,14 @@ export function getOrbit(): Orbit {
     element.remove();
   };
 
+  const nextTick = (callback: () => void) => {
+    if ("requestAnimationFrame" in window) {
+      requestAnimationFrame(callback);
+    } else {
+      setTimeout(callback, 1);
+    }
+  };
+
   const onBeforeUnload = () => {
     window.removeEventListener("beforeunload", onBeforeUnload);
 
@@ -199,7 +207,9 @@ export function getOrbit(): Orbit {
                   templateElements.add(child);
                 }
 
-                templateParent.appendChild(cloned);
+                nextTick(() => {
+                  templateParent.appendChild(cloned);
+                });
               }
             }
 
@@ -277,7 +287,9 @@ export function getOrbit(): Orbit {
                 fragment.appendChild(cloned);
               }
 
-              templateParent.appendChild(fragment);
+              nextTick(() => {
+                templateParent.appendChild(fragment);
+              });
             }
           });
 
@@ -317,11 +329,13 @@ export function getOrbit(): Orbit {
             }
           }
 
-          templateParent.appendChild(cloned);
-
           getElementDisposables(element).add(() => {
             templateElements.forEach((el) => deepRemove(el));
             templateElements.clear();
+          });
+
+          nextTick(() => {
+            templateParent.appendChild(cloned);
           });
         }
 

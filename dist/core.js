@@ -71,6 +71,14 @@ export function getOrbit() {
         }
         element.remove();
     };
+    const nextTick = (callback) => {
+        if ("requestAnimationFrame" in window) {
+            requestAnimationFrame(callback);
+        }
+        else {
+            setTimeout(callback, 1);
+        }
+    };
     const onBeforeUnload = () => {
         window.removeEventListener("beforeunload", onBeforeUnload);
         scopeComponentLoaders.clear();
@@ -148,7 +156,9 @@ export function getOrbit() {
                                 for (const child of cloned.children) {
                                     templateElements.add(child);
                                 }
-                                templateParent.appendChild(cloned);
+                                nextTick(() => {
+                                    templateParent.appendChild(cloned);
+                                });
                             }
                         }
                         else if (templateElements.size) {
@@ -210,7 +220,9 @@ export function getOrbit() {
                                 }
                                 fragment.appendChild(cloned);
                             }
-                            templateParent.appendChild(fragment);
+                            nextTick(() => {
+                                templateParent.appendChild(fragment);
+                            });
                         }
                     });
                     getElementDisposables(element).add(() => {
@@ -241,10 +253,12 @@ export function getOrbit() {
                             elementScopeIdMap.set(child, scopeCache.id);
                         }
                     }
-                    templateParent.appendChild(cloned);
                     getElementDisposables(element).add(() => {
                         templateElements.forEach((el) => deepRemove(el));
                         templateElements.clear();
+                    });
+                    nextTick(() => {
+                        templateParent.appendChild(cloned);
                     });
                 }
                 else {
