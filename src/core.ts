@@ -621,7 +621,7 @@ export function getOrbit(): Orbit {
       initScopeComponent(element, scopeCache);
 
       // render/hydration
-      component.mount(scopeCache.instance, getProps(element));
+      component.mount(scopeCache.instance, consumeScopeProps(element));
 
       // notify first time
       scopeCache.stateHookMap.forEach((hooks, prop) => {
@@ -834,13 +834,20 @@ function isStaticComponentLoader(loader: OrbitComponentLoader): loader is OrbitC
   return (loader && typeof loader === "object" && loader[ORBIT_COMPONENT_SYMBOL]);
 }
 
-function getProps(root: Element) {
+function consumeScopeProps(root: Element) {
   if (root.hasAttribute("o-scope-props")) {
-    return parseServerSideProps(root.getAttribute("o-scope-props"));
+    const props = parseServerSideProps(root.getAttribute("o-scope-props"));
+
+    root.removeAttribute("o-scope-props");
+    return props;
   }
 
   const propsId = root.getAttribute("o-scope-props-id");
-  const props = propsId ? parseServerSideProps(document.getElementById(propsId)?.textContent) : {};
+  const propsElement = propsId ? document.getElementById(propsId) : undefined;
+  const props = parseServerSideProps(propsElement?.textContent);
+
+  root.removeAttribute("o-scope-props-id");
+  propsElement?.remove();
 
   return props;
 }
