@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => ({
       onGetEntries() {
         const entries: Record<string, string> = {
           "page1.html": "tests/page1.tsx",
+          "page1_nochunk.html": "tests/page1_nochunk.tsx",
           "page1_ssr.html": "tests/page1_ssr.tsx",
           "page2.html": "tests/page2.tsx",
           "page3.html": "tests/page3.tsx",

@@ -98,14 +98,6 @@ export function getOrbit(): Orbit {
     element.remove();
   };
 
-  const nextTick = (callback: () => void) => {
-    if ("requestAnimationFrame" in window) {
-      requestAnimationFrame(callback);
-    } else {
-      setTimeout(callback, 1);
-    }
-  };
-
   const onBeforeUnload = () => {
     window.removeEventListener("beforeunload", onBeforeUnload);
 
@@ -838,7 +830,7 @@ function consumeScopeProps(root: Element) {
   if (root.hasAttribute("o-scope-props")) {
     const props = parseServerSideProps(root.getAttribute("o-scope-props"));
 
-    root.removeAttribute("o-scope-props");
+    // root.removeAttribute("o-scope-props");
     return props;
   }
 
@@ -846,8 +838,27 @@ function consumeScopeProps(root: Element) {
   const propsElement = propsId ? document.getElementById(propsId) : undefined;
   const props = parseServerSideProps(propsElement?.textContent);
 
-  root.removeAttribute("o-scope-props-id");
-  propsElement?.remove();
+  // root.removeAttribute("o-scope-props-id");
+
+  // if (propsElement) {
+  //   nextIdle(() => propsElement.remove());
+  // }
 
   return props;
 }
+
+function nextTick(callback: () => void) {
+  if ("requestAnimationFrame" in window) {
+    requestAnimationFrame(callback);
+  } else {
+    setTimeout(callback, 1);
+  }
+}
+
+// function nextIdle(callback: () => void) {
+//   if ("requestIdleCallback" in window) {
+//     requestIdleCallback(callback);
+//   } else {
+//     setTimeout(callback, 1);
+//   }
+// }
