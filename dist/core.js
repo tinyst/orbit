@@ -472,7 +472,7 @@ export function getOrbit() {
             // init directives and crawl into children
             initScopeComponent(element, scopeCache);
             // render/hydration
-            component.mount(scopeCache.instance, getProps(element));
+            component.mount(scopeCache.instance, consumeScopeProps(element));
             // notify first time
             scopeCache.stateHookMap.forEach((hooks, prop) => {
                 const value = getObjectValue(scopeCache.stateValueMap, prop);
@@ -570,7 +570,7 @@ export function getOrbit() {
             scopeComponentLoaders.set(name, loader);
         },
         start() {
-            const mutationObserver = new MutationObserver((mutations) => {
+            mutationObserver = new MutationObserver((mutations) => {
                 for (const mutation of mutations) {
                     if (mutation.type === "childList") {
                         for (const node of mutation.removedNodes) {
@@ -586,7 +586,7 @@ export function getOrbit() {
                     }
                 }
             });
-            const intersectionObserver = new IntersectionObserver((entries) => {
+            intersectionObserver = new IntersectionObserver((entries) => {
                 for (const entry of entries) {
                     if (entry.isIntersecting) {
                         intersectionObserver?.unobserve(entry.target);
@@ -635,11 +635,16 @@ async function getComponent(loader) {
 function isStaticComponentLoader(loader) {
     return (loader && typeof loader === "object" && loader[ORBIT_COMPONENT_SYMBOL]);
 }
-function getProps(root) {
+function consumeScopeProps(root) {
     if (root.hasAttribute("o-scope-props")) {
-        return parseServerSideProps(root.getAttribute("o-scope-props"));
+        const props = parseServerSideProps(root.getAttribute("o-scope-props"));
+        root.removeAttribute("o-scope-props");
+        return props;
     }
     const propsId = root.getAttribute("o-scope-props-id");
-    const props = propsId ? parseServerSideProps(document.getElementById(propsId)?.textContent) : {};
+    const propsElement = propsId ? document.getElementById(propsId) : undefined;
+    const props = parseServerSideProps(propsElement?.textContent);
+    root.removeAttribute("o-scope-props-id");
+    propsElement?.remove();
     return props;
 }

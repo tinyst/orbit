@@ -750,7 +750,7 @@ export function getOrbit(): Orbit {
     },
 
     start() {
-      const mutationObserver = new MutationObserver((mutations) => {
+      mutationObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           if (mutation.type === "childList") {
             for (const node of mutation.removedNodes) {
@@ -768,7 +768,7 @@ export function getOrbit(): Orbit {
         }
       });
 
-      const intersectionObserver = new IntersectionObserver((entries) => {
+      intersectionObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
             intersectionObserver?.unobserve(entry.target);
