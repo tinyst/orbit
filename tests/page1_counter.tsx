@@ -80,7 +80,13 @@ export function CounterView() {
         o-scope-props-id={propsId}
       >
         <p o-text={state.count}>{`{{ ${state.count} }}`}</p>
-        <p o-text={state.computed} o-class={state.computedClass}>{`{{ ${context.computedValue} }}`}</p>
+        <p
+          o-text={state.computed}
+          o-class={state.computedClass}
+          class={`{% if ${context.count} > 10 %}text-red-500{% else %}text-blue-500{% endif %}`}
+        >
+          {`{{ ${context.computedValue} }}`}
+        </p>
         <input o-model={state.disabled} type="checkbox" />
         <input
           o-disabled={state.disabled}
