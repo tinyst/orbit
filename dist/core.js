@@ -94,17 +94,32 @@ export function getOrbit() {
             }
             else if (attribute.name === "o-class") {
                 registerStateChange(scopeCache, element, attribute.value, (next) => {
-                    element.className = stringifyValue(next);
+                    try {
+                        element.className = stringifyValue(next);
+                    }
+                    catch (error) {
+                        console.error(`error setting property 'className' on element`, element, error);
+                    }
                 });
             }
             else if (attribute.name === "o-text") {
                 registerStateChange(scopeCache, element, attribute.value, (next) => {
-                    element.textContent = stringifyValue(next);
+                    try {
+                        element.textContent = stringifyValue(next);
+                    }
+                    catch (error) {
+                        console.error(`error setting property 'textContent' on element`, element, error);
+                    }
                 });
             }
             else if (attribute.name === "o-html") {
                 registerStateChange(scopeCache, element, attribute.value, (next) => {
-                    element.innerHTML = stringifyValue(next);
+                    try {
+                        element.innerHTML = stringifyValue(next);
+                    }
+                    catch (error) {
+                        console.error(`error setting property 'innerHTML' on element`, element, error);
+                    }
                 });
             }
             else if (attribute.name === "o-model") {
@@ -122,13 +137,23 @@ export function getOrbit() {
                     if (element.type === "checkbox") {
                         registerEvent("change", "checked");
                         registerStateChange(scopeCache, element, path, (next) => {
-                            element.checked = next;
+                            try {
+                                element.checked = next;
+                            }
+                            catch (error) {
+                                console.error(`error setting property 'checked' on element`, element, error);
+                            }
                         });
                     }
                     else {
                         registerEvent("input", "value");
                         registerStateChange(scopeCache, element, path, (next) => {
-                            element.value = next;
+                            try {
+                                element.value = next;
+                            }
+                            catch (error) {
+                                console.error(`error setting property 'value' on element`, element, error);
+                            }
                         });
                     }
                     continue;
@@ -173,7 +198,7 @@ export function getOrbit() {
                     const path = attribute.value;
                     const as = element.getAttribute("o-as") ?? "$";
                     const templateParent = element.parentElement ?? scopeCache.instance.root;
-                    const templateElements = new Set();
+                    let templateElementChunks;
                     const mapPath = (itemElement, each, as, index) => {
                         for (const attribute of itemElement.attributes) {
                             if (!attribute.name.startsWith("o-") || attribute.name.startsWith("o-scope") || attribute.name.startsWith("o-for")) {
@@ -198,28 +223,40 @@ export function getOrbit() {
                         }
                     };
                     registerStateChange(scopeCache, element, path, (next) => {
-                        if (templateElements.size) {
-                            templateElements.forEach((el) => deepRemove(el));
-                            templateElements.clear();
-                        }
-                        if (Array.isArray(next)) {
+                        const prevLength = templateElementChunks?.length ?? 0;
+                        const nextLength = Array.isArray(next) ? next.length : 0;
+                        // increase
+                        if (nextLength > prevLength) {
                             const fragment = document.createDocumentFragment();
-                            for (let i = 0; i < next.length; i++) {
+                            const elements = new Set();
+                            for (let i = prevLength; i < nextLength; i++) {
                                 const cloned = element.content.cloneNode(true);
                                 for (const child of cloned.children) {
                                     mapPath(child, path, as, i);
-                                    templateElements.add(child);
+                                    elements.add(child);
                                 }
                                 fragment.appendChild(cloned);
                             }
+                            if (!templateElementChunks) {
+                                templateElementChunks = [];
+                            }
+                            templateElementChunks.push(elements);
                             nextTick(() => {
                                 templateParent.appendChild(fragment);
                             });
                         }
+                        // decrease
+                        else if (nextLength < prevLength) {
+                            templateElementChunks?.splice(nextLength)?.forEach((templateElements) => {
+                                templateElements.forEach((el) => deepRemove(el));
+                            });
+                        }
                     });
                     getElementDisposables(element).add(() => {
-                        templateElements.forEach((el) => deepRemove(el));
-                        templateElements.clear();
+                        templateElementChunks?.forEach((templateElements) => {
+                            templateElements.forEach((el) => deepRemove(el));
+                        });
+                        templateElementChunks = undefined;
                     });
                 }
                 else {

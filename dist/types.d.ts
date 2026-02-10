@@ -1,12 +1,13 @@
 import type { ORBIT_COMPONENT_SYMBOL, ORBIT_ID_SYMBOL } from "./constants.js";
+export type Dispose = () => void;
+export type FieldPath = string | number | symbol;
 export type Orbit = {
     register(name: string, loader: OrbitComponentLoader): void;
     start(): void;
     stop(): void;
 };
-export type OrbitDispose = () => void;
 export type OrbitScopeController = {
-    dispose: OrbitDispose;
+    dispose: Dispose;
 };
 export type OrbitScopeId = string & {
     readonly [ORBIT_ID_SYMBOL]: true;

@@ -1,4 +1,4 @@
-export type FieldPath = string | number | symbol;
+import type { FieldPath } from "./types.js";
 
 export function getObjectValue(src: Record<FieldPath, any> | undefined, path: FieldPath) {
   if (!src) {

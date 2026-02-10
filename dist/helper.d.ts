@@ -1,4 +1,4 @@
-export type FieldPath = string | number | symbol;
+import type { FieldPath } from "./types.js";
 export declare function getObjectValue(src: Record<FieldPath, any> | undefined, path: FieldPath): any;
 export declare function setObjectValue(src: Record<FieldPath, any> | undefined, path: FieldPath, value: any): void;
 export declare function isObject(value: any): value is object;
