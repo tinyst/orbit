@@ -94,7 +94,7 @@ export function parseServerSideProps(value: any): any {
   try {
     const result = JSON.parse(value);
 
-    if (isObject(result) && !Array.isArray(result)) {
+    if (result && isObject(result) && !Array.isArray(result)) {
       return result;
     }
   } catch {
