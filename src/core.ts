@@ -88,16 +88,6 @@ export function getOrbit(): Orbit {
     scopeCache.stateDependencyMap.get(path)?.forEach((dependency) => notifyStateChange(scopeCache, dependency));
   };
 
-  const deepRemove = (element: Element) => {
-    const children: Element[] = Array.from(element.children);
-
-    for (const child of children) {
-      deepRemove(child);
-    }
-
-    element.remove();
-  };
-
   const onBeforeUnload = () => {
     window.removeEventListener("beforeunload", onBeforeUnload);
 
@@ -226,13 +216,13 @@ export function getOrbit(): Orbit {
             }
 
             else if (templateElements.size) {
-              templateElements.forEach((el) => deepRemove(el));
+              templateElements.forEach((el) => el.remove());
               templateElements.clear();
             }
           });
 
           getElementDisposables(element).add(() => {
-            templateElements.forEach((el) => deepRemove(el));
+            templateElements.forEach((el) => el.remove());
             templateElements.clear();
           });
         }
@@ -314,14 +304,14 @@ export function getOrbit(): Orbit {
             // decrease
             else if (nextLength < prevLength) {
               templateElementChunks?.splice(nextLength)?.forEach((templateElements) => {
-                templateElements.forEach((el) => deepRemove(el));
+                templateElements.forEach((el) => el.remove());
               });
             }
           });
 
           getElementDisposables(element).add(() => {
             templateElementChunks?.forEach((templateElements) => {
-              templateElements.forEach((el) => deepRemove(el));
+              templateElements.forEach((el) => el.remove());
             });
 
             templateElementChunks = undefined;
@@ -359,7 +349,7 @@ export function getOrbit(): Orbit {
           }
 
           getElementDisposables(element).add(() => {
-            templateElements.forEach((el) => deepRemove(el));
+            templateElements.forEach((el) => el.remove());
             templateElements.clear();
           });
 
@@ -720,6 +710,20 @@ export function getOrbit(): Orbit {
     }
   };
 
+  const clearRemovedElements = () => {
+    let startAt = Date.now();
+
+    for (const element of elementDisposablesMap.keys()) {
+      if (!element.isConnected) {
+        destroyElement(element);
+
+        if (Date.now() - startAt > 10) {
+          return nextTick(clearRemovedElements);
+        }
+      }
+    }
+  };
+
   // for MutationObserver
   const onAdd = (element: Element) => {
     if (elementWalkedMap.has(element)) {
@@ -740,14 +744,6 @@ export function getOrbit(): Orbit {
     for (const child of element.children) {
       onAdd(child);
     }
-  };
-
-  const onRemove = (element: Element) => {
-    for (const child of element.children) {
-      onRemove(child);
-    }
-
-    destroyElement(element);
   };
 
   // for IntersectionObserver
@@ -782,10 +778,8 @@ export function getOrbit(): Orbit {
       mutationObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
           if (mutation.type === "childList") {
-            for (const node of mutation.removedNodes) {
-              if (node instanceof Element) {
-                onRemove(node);
-              }
+            if (mutation.removedNodes.length) {
+              nextTick(clearRemovedElements);
             }
 
             for (const node of mutation.addedNodes) {
@@ -808,11 +802,9 @@ export function getOrbit(): Orbit {
         }
       });
 
-      const root = document.body;
+      initTree(document.body);
 
-      initTree(root);
-
-      mutationObserver.observe(root, {
+      mutationObserver.observe(document, {
         childList: true,
         subtree: true,
       });
@@ -867,7 +859,7 @@ function consumeScopeProps(root: Element) {
   if (root.hasAttribute("o-scope-props")) {
     const props = parseServerSideProps(root.getAttribute("o-scope-props"));
 
-    // root.removeAttribute("o-scope-props");
+    root.removeAttribute("o-scope-props");
     return props;
   }
 
@@ -875,11 +867,11 @@ function consumeScopeProps(root: Element) {
   const propsElement = propsId ? document.getElementById(propsId) : undefined;
   const props = parseServerSideProps(propsElement?.textContent);
 
-  // root.removeAttribute("o-scope-props-id");
+  root.removeAttribute("o-scope-props-id");
 
-  // if (propsElement) {
-  //   nextIdle(() => propsElement.remove());
-  // }
+  if (propsElement) {
+    nextIdle(() => propsElement.remove());
+  }
 
   return props;
 }
@@ -892,10 +884,10 @@ function nextTick(callback: () => void) {
   }
 }
 
-// function nextIdle(callback: () => void) {
-//   if ("requestIdleCallback" in window) {
-//     requestIdleCallback(callback);
-//   } else {
-//     setTimeout(callback, 1);
-//   }
-// }
+function nextIdle(callback: () => void) {
+  if ("requestIdleCallback" in window) {
+    requestIdleCallback(callback);
+  } else {
+    setTimeout(callback, 1);
+  }
+}
