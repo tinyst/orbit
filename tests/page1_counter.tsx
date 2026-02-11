@@ -1,13 +1,12 @@
 import { fieldPath } from "@tinyst/fieldpath";
-import { defineComponent } from "../src/core";
 import clsx from "clsx";
+import { defineComponent } from "../src/core";
 
 export type CounterState = {
   count: number;
   disabled: boolean;
   input: string;
   items: string[];
-
 
   // computed
   readonly computed: string;
