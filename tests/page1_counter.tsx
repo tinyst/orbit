@@ -1,4 +1,5 @@
 import { fieldPath } from "@tinyst/fieldpath";
+import { j } from "@tinyst/kizune";
 import clsx from "clsx";
 import { defineComponent } from "../src/core";
 
@@ -78,13 +79,17 @@ export function CounterView() {
         o-scope={CounterScope}
         o-scope-props-id={propsId}
       >
-        <p o-text={state.count}>{`{{ ${state.count} }}`}</p>
+        <p o-text={state.count}>{j.expr(context.count)}</p>
         <p
           o-text={state.computed}
           o-class={state.computedClass}
-          class={`{% if ${context.count} > 10 %}text-red-500{% else %}text-blue-500{% endif %}`}
+          class={j.join(
+            j.if(`${context.count} > 10`, "text-red-500"),
+            j.else("text-blue-500"),
+            j.endif,
+          )}
         >
-          {`{{ ${context.computedValue} }}`}
+          {j.expr(context.computedValue)}
         </p>
         <input o-model={state.disabled} type="checkbox" />
         <input

@@ -24,6 +24,7 @@
     "@preact/signals-react": "3.8.0",
     "@tinyst/fieldpath": "github:tinyst/fieldpath#233d5cb79f7035814fad477e24f362157099d87f",
     "@tinyst/jsx": "github:tinyst/jsx#59dc3a8624157de1d6f291d48b3ec0ab81398cba",
+    "@tinyst/kizune": "github:tinyst/kizune#6807e96d628fd81071a91e2a62ee311bd11ab25b",
     "@tinyst/taggl": "github:tinyst/taggl#84673d071b0b4d10395f87ad55287ddc55c7e0ff",
     "@tinyst/vite-plugin-virtual-html": "github:tinyst/vite-plugin-virtual-html#eec8754bad869e6fb2bac898bd9c93f319ef79d9",
     "@types/bun": "1.3.6",
