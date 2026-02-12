@@ -1,7 +1,7 @@
 import { CounterView } from "./page1_counter";
 
-export function preact() {
-  const itemCount = 1;
+export default function page() {
+  const itemCount = 10;
   const itemPerChunk = Math.min(100, itemCount);
 
   const chunkCount = Math.ceil(itemCount / itemPerChunk);

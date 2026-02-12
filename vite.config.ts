@@ -1,8 +1,6 @@
-import { reveal } from "@tinyst/taggl";
+import { renderToString } from "@tinyst/jsx";
 import { virtualHTML } from "@tinyst/vite-plugin-virtual-html";
 import nunjucks from "nunjucks";
-import { renderToString as renderToStringPreact } from "preact-render-to-string";
-import { renderToString as renderToStringReact } from "react-dom/server";
 import { defineConfig } from "vite";
 
 export default defineConfig(({ mode }) => ({
@@ -40,13 +38,10 @@ export default defineConfig(({ mode }) => ({
           computedValue,
         };
 
-        const template = (
-          module.preact ? reveal(renderToStringPreact(module.preact(context))) :
-            module.react ? reveal(renderToStringReact(module.react(context))) :
-              ""
-        );
+        const template = renderToString(module.default(context));
+        const html = nunjucks.renderString(template, context);
 
-        return nunjucks.renderString(template, context);
+        return html;
       },
     }),
   ],

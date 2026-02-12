@@ -29,6 +29,11 @@ export type CounterContext = {
   readonly computedValue: string;
 };
 
+const classes = {
+  a: "text-blue-500",
+  b: "text-red-500",
+};
+
 export const CounterScope = "Counter";
 export const Counter = defineComponent<CounterProps>((scope, props) => {
   const count = props.count ?? 0;
@@ -44,8 +49,8 @@ export const Counter = defineComponent<CounterProps>((scope, props) => {
 
     get computedClass() {
       return clsx({
-        "text-blue-500": this.count <= 10,
-        "text-red-500": this.count > 10,
+        [classes.a]: this.count <= 10,
+        [classes.b]: this.count > 10,
       });
     },
 
@@ -83,11 +88,10 @@ export function CounterView() {
         <p
           o-text={state.computed}
           o-class={state.computedClass}
-          class={j.join(
-            j.if(`${context.count} > 10`, "text-red-500"),
-            j.else("text-blue-500"),
-            j.endif,
-          )}
+          class={j.match({
+            [classes.a]: `${context.count} <= 10`,
+            [classes.b]: `${context.count} > 10`,
+          })}
         >
           {j.expr(context.computedValue)}
         </p>
